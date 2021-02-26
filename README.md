@@ -4,7 +4,9 @@ Renomme des fichiers vidéo selon tmdb pour intégration dans Kodi.
 
 Exemple d'utilisation :
 
-<code bash>./videoRename.php -d~/Src/videoRenamer/videoTest/
+```
+$ chmod +x ./videoRename.php
+$ ./videoRename.php -d~/Src/videoRenamer/videoTest/
 
 Log Level = 0
 Tableau des fichier renommés :
@@ -40,4 +42,4 @@ Tableau des fichier renommés :
         "newName": "NEW_[ www.OMGTORRENT.com ] Hackers.2015.FRENCH.WEBRip.MD.XViD-KR4K3N.avi"
     }
 ]
-</code>
+```

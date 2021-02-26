@@ -1,8 +1,8 @@
 #!/usr/bin/php
 <?php
 
+// gestion du niveau de log
 $logLevel=0; // niveau général de log
-
 function setGlobalLogLevel($level) {
     global $logLevel;
     $logLevel=$level;
@@ -14,12 +14,16 @@ function getGlobalLogLevel() {
 }
 
 function llog($ch="",$level=0) {
+    // fonction de log principale
     if($level<=getGlobalLogLevel()) {
         echo $ch ."\n";
     }
 }
 
 function init() {
+    // divers initialisations
+    // gestion de options de la ligne de commande
+    // retourne le tableau des options (getOpt)
     $params=getopt("b::h::R::v::d:");
     
     if(key_exists("h", $params)) {
@@ -47,31 +51,50 @@ function init() {
     return $params;
 }
 
-function isDir ($file)
-{
-//    return ((fileperms("$file") & 0x4000) == 0x4000);
-    return is_dir($file);
+function recupTmdb($filename) {
+    // retourne le nom du fichier depuis tmdb.
+    llog("recupTmdb:" . $filename,2);
+    
+    $cleanFilename = trim(preg_replace('/[^[:alnum:]]/', " ", $filename));
+    $fnTab=explode(" ",$cleanFilename);
+    //var_dump($fnTab);
+    $resFilename="";
+    foreach($fnTab as $mot) {
+        if(strlen($mot)>2) {
+            $resFilename=$resFilename . " " . $mot;    
+        }
+    }
+    
+    return trim($resFilename);
 }
 
 function videoRenameFile($dirname,$filename) {
+    // retourne le triplet :
+    // repertoire / fichier / fichier renommé
+    // le fichier doit exister
     llog("videoRenameFile:" . $dirname . "-".$filename,2);
+
+    $newFilename=recupTmdb($filename);
+    
     $fileRenamed = [
         "dir" => $dirname,
         "name" => $filename,
-        "newName" => "NEW_".$filename,
+        "newName" => $newFilename,
     ];
     
     return $fileRenamed;
 }
 
 function videoRenameDir($dirname,$recurs) {
+    // retourne l'array contenant les triplets :
+    // repertoire / fichier / fichier renommé 
     llog("videoRenameDir:" . $dirname,2);
     $d = dir($dirname);
     $filesRenamed=[];
     while (false !== ($entry = $d->read())) {
         llog("Parcours : " . $entry,2);
         if($entry!="." && $entry != "..") {
-            if(isDir($dirname .$entry) && $recurs) {
+            if(is_dir($dirname .$entry) && $recurs) {
                 $filesRenamed=array_merge($filesRenamed,videoRenameDir($dirname . $entry,$recurs));
             } elseif (is_file($dirname .$entry)) {
                 $filesRenamed[]=videoRenameFile($dirname,$entry);
@@ -84,6 +107,7 @@ function videoRenameDir($dirname,$recurs) {
 }
 
 function fRealPath($dirname) {
+    // retourne le chemin absolu correspondant.
     llog("fRealPath : " . $dirname,2);
     $rpath="";
     if(substr($dirname, 0, 1)=="~") {
@@ -97,12 +121,12 @@ function fRealPath($dirname) {
 // Main
 $params=init();
 
-// Traitement
+// Traitement Principal
 if(key_exists("d", $params) && $params["d"]) {
     $filesRenamedTab=[];
     
     $dirname=fRealPath($params["d"]);
-    if(isDir($dirname)) {
+    if(is_dir($dirname)) {
         llog("Traitement repertoire : " . $dirname,2);
         $dirname=$dirname.(substr($dirname,-1)=="/"?"":"/");
         $recurs=key_exists("R",$params);

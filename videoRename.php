@@ -1,5 +1,10 @@
 #!/usr/bin/php
 <?php
+// paramètres important
+$cdeLineParams = [];
+$maxLen = 2;
+$excludeWords = [];
+$iniParams=[];
 
 // gestion du niveau de log
 $logLevel=0; // niveau général de log
@@ -24,9 +29,9 @@ function init() {
     // divers initialisations
     // gestion de options de la ligne de commande
     // retourne le tableau des options (getOpt)
-    $params=getopt("b::h::R::v::d:");
+    $cdeLineParams=getopt("b::h::R::v::d:");
     
-    if(key_exists("h", $params)) {
+    if(key_exists("h", $cdeLineParams)) {
         llog("==============");
         llog(" videoRenamer");
         llog("==============");
@@ -41,31 +46,54 @@ function init() {
         exit(0);
     }
     
-    setGlobalLogLevel(key_exists("v", $params)?1:0);
+    setGlobalLogLevel(key_exists("v", $cdeLineParams)?1:0);
     
-    if(key_exists("b", $params)) {
+    if(key_exists("b", $cdeLineParams)) {
         llog("Debug activé.");
         setGlobalLogLevel(2);
     }
     
+    return $cdeLineParams;
+}
+
+function getIniParams() {
+    global $argv;
+
+    // Lit le fichier .ini du script et renvoi le tableau associatif resultant.
+    llog("Ini File : ". $argv[0]. ".ini",2);
+    $params=parse_ini_file($argv[0] . ".ini");
+    if (getGlobalLogLevel()==2) {var_dump($params);}
     return $params;
 }
 
-function recupTmdb($filename) {
-    // retourne le nom du fichier depuis tmdb.
+function cleanFileName($filename) {
+    global $iniParams;
+    
+    $excludeWords=$iniParams["excludeWords"];
+    $maxLen=$iniParams["maxLen"];
+    
+    // retourne le nom du fichier "nettoyé".
     llog("recupTmdb:" . $filename,2);
     
-    $cleanFilename = trim(preg_replace('/[^[:alnum:]]/', " ", $filename));
+    $excludeWords=explode(" ",strtoupper(implode(" ",$excludeWords)));
+    $cleanFilename = strtoupper( trim(preg_replace('/[^[:alnum:]]/', " ", $filename)));
     $fnTab=explode(" ",$cleanFilename);
     //var_dump($fnTab);
     $resFilename="";
     foreach($fnTab as $mot) {
-        if(strlen($mot)>2) {
-            $resFilename=$resFilename . " " . $mot;    
+        if(strlen($mot)<($maxLen+1) ||
+            in_array($mot,$excludeWords)) {
+            continue;
         }
+        $resFilename=$resFilename . " " . $mot;
     }
     
     return trim($resFilename);
+}
+
+function recupTmdb($filename) {
+    
+    return cleanFileName($filename);
 }
 
 function videoRenameFile($dirname,$filename) {
@@ -92,7 +120,6 @@ function videoRenameDir($dirname,$recurs) {
     $d = dir($dirname);
     $filesRenamed=[];
     while (false !== ($entry = $d->read())) {
-        llog("Parcours : " . $entry,2);
         if($entry!="." && $entry != "..") {
             if(is_dir($dirname .$entry) && $recurs) {
                 $filesRenamed=array_merge($filesRenamed,videoRenameDir($dirname . $entry,$recurs));
@@ -119,17 +146,18 @@ function fRealPath($dirname) {
 }
 
 // Main
-$params=init();
+$cdeLineParams=init();
+$iniParams=getIniParams();
 
 // Traitement Principal
-if(key_exists("d", $params) && $params["d"]) {
+if(key_exists("d", $cdeLineParams) && $cdeLineParams["d"]) {
     $filesRenamedTab=[];
     
-    $dirname=fRealPath($params["d"]);
+    $dirname=fRealPath($cdeLineParams["d"]);
     if(is_dir($dirname)) {
         llog("Traitement repertoire : " . $dirname,2);
         $dirname=$dirname.(substr($dirname,-1)=="/"?"":"/");
-        $recurs=key_exists("R",$params);
+        $recurs=key_exists("R",$cdeLineParams);
         $filesRenamedTab=videoRenameDir($dirname,$recurs);
     } elseif (is_file($dirname)) {
         llog("Traitement fichier : " . $dirname,2);

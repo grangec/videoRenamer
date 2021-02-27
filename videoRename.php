@@ -66,39 +66,47 @@ function getIniParams() {
     return $params;
 }
 
-function cleanFileName($filename) {
+function keyWords($filename) {
+    // retourne les mot cles extrait du nom de fichier
     global $iniParams;
-    
-    $excludeWords=$iniParams["excludeWords"];
-    $maxLen=$iniParams["maxLen"];
-    
+
     // retourne le nom du fichier "nettoyé".
     llog("recupTmdb:" . $filename,2);
+    $excludeWords=$iniParams["excludeWords"];
+    $wordsMinLen=$iniParams["wordsMinLen"];
     
-    $excludeWords=explode(" ",strtoupper(implode(" ",$excludeWords)));
-    $cleanFilename = strtoupper( trim(preg_replace('/[^[:alnum:]]/', " ", $filename)));
-    $fnTab=explode(" ",$cleanFilename);
-    //var_dump($fnTab);
-    $resFilename="";
-    foreach($fnTab as $mot) {
-        if(strlen($mot)<($maxLen+1) ||
-            in_array($mot,$excludeWords)) {
-            continue;
+    //nettoyage du nom de fichier
+    if(strlen($filename)>$wordsMinLen) {
+        $excludeWords=explode(" ",strtoupper(implode(" ",$excludeWords)));
+        $cleanFilename = strtoupper( trim(preg_replace('/[^[:alnum:]]/', " ", $filename)));
+        $fnTab=explode(" ",$cleanFilename);
+        //var_dump($fnTab);
+        $resFilename="";
+        foreach($fnTab as $mot) {
+            if(strlen($mot)<($wordsMinLen+1) ||
+                in_array($mot,$excludeWords)) {
+                continue;
+            }
+            $resFilename=$resFilename . " " . $mot;
         }
-        $resFilename=$resFilename . " " . $mot;
+        //Sécu pour pas tout enlever
+        if(strlen($resFilename)<($wordsMinLen+1)) {
+            $resFilename=strtoupper($filename);
+        }
     }
+    
     
     return trim($resFilename);
 }
 
 function recupTmdb($filename) {
     
-    return cleanFileName($filename);
+    return keyWords($filename);
 }
 
 function videoRenameFile($dirname,$filename) {
     // retourne le triplet :
-    // repertoire / fichier / fichier renommé
+    // dir/name/keyWords soit repertoire/fichier/mots cles 
     // le fichier doit exister
     llog("videoRenameFile:" . $dirname . "-".$filename,2);
 
@@ -107,7 +115,7 @@ function videoRenameFile($dirname,$filename) {
     $fileRenamed = [
         "dir" => $dirname,
         "name" => $filename,
-        "newName" => $newFilename,
+        "keyWords" => $newFilename,
     ];
     
     return $fileRenamed;

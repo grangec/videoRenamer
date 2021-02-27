@@ -21,7 +21,7 @@ function getGlobalLogLevel() {
 function llog($ch="",$level=0) {
     // fonction de log principale
     if($level<=getGlobalLogLevel()) {
-        echo $ch ."\n";
+        echo date("Y-m-d H:i:s") . " : ". trim($ch) ."\n";
     }
 }
 
@@ -67,7 +67,7 @@ function getIniParams() {
 }
 
 function keyWords($filename) {
-    // retourne les mot cles extrait du nom de fichier
+    // retourne les mots cles extrait du nom de fichier dans un tableau
     global $iniParams;
 
     // retourne le nom du fichier "nettoyé".
@@ -76,32 +76,63 @@ function keyWords($filename) {
     $wordsMinLen=$iniParams["wordsMinLen"];
     
     //nettoyage du nom de fichier
+    $resKeyWords=[];
     if(strlen($filename)>$wordsMinLen) {
-        $excludeWords=explode(" ",strtoupper(implode(" ",$excludeWords)));
-        $cleanFilename = strtoupper( trim(preg_replace('/[^[:alnum:]]/', " ", $filename)));
+        $excludeWords=implode(" ",$excludeWords);
+        $cleanFilename = trim(preg_replace('/[^[:alnum:]]/', " ", $filename));
         $fnTab=explode(" ",$cleanFilename);
-        //var_dump($fnTab);
-        $resFilename="";
         foreach($fnTab as $mot) {
             if(strlen($mot)<($wordsMinLen+1) ||
-                in_array($mot,$excludeWords)) {
+                stripos($excludeWords,$mot)!==false) {
                 continue;
             }
-            $resFilename=$resFilename . " " . $mot;
+            $resKeyWords[]=$mot;
         }
         //Sécu pour pas tout enlever
-        if(strlen($resFilename)<($wordsMinLen+1)) {
-            $resFilename=strtoupper($filename);
+        if(count($resKeyWords)==0) {
+            $resKeyWords=$fnTab;
         }
     }
     
-    
-    return trim($resFilename);
+    return $resKeyWords;
 }
 
 function recupTmdb($filename) {
+    global $iniParams;
+    // Récupération des mot cles
+    $keyWords=keyWords($filename);
     
-    return keyWords($filename);
+    while(count($keyWords)>0) {
+        //Chaine du parametre query de l'API
+        $keyWordsStr=implode("+",$keyWords);
+        //l'URL
+        $url= $iniParams["tmdbBaseUrl"] . "search/movie?api_key=" . $iniParams["apiKey"] . "&query=".$keyWordsStr . "&language=".$iniParams["language"];
+        llog("URL:".$url,2);
+        
+        // Requeter
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
+        curl_setopt($ch, CURLOPT_HEADER, FALSE);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array("Accept: application/json"));
+        $response = curl_exec($ch);
+        curl_close($ch);
+        $results = json_decode($response, true);
+        
+        llog("results:".json_encode($results,JSON_PRETTY_PRINT),2);
+        
+        if(array_key_exists("total_results",$results) &&  $results["total_results"]==0) {
+            array_pop($keyWords);       
+        } else {
+            break;
+        }
+    }
+
+    if(count($keyWords)==0) {
+        return false;
+    }
+    
+    return $results["results"][0];
 }
 
 function videoRenameFile($dirname,$filename) {
@@ -110,12 +141,16 @@ function videoRenameFile($dirname,$filename) {
     // le fichier doit exister
     llog("videoRenameFile:" . $dirname . "-".$filename,2);
 
-    $newFilename=recupTmdb($filename);
+    $tmdbDatas=recupTmdb($filename);
+    
+    $newName[]=$tmdbDatas["title"];
+    $newName[]=$tmdbDatas["release_date"];
+    $newName[]=pathinfo($filename)["extension"];
     
     $fileRenamed = [
         "dir" => $dirname,
         "name" => $filename,
-        "keyWords" => $newFilename,
+        "newName" => implode(".",$newName),
     ];
     
     return $fileRenamed;

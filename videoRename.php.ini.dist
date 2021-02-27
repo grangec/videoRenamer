@@ -1,6 +1,7 @@
 [tmdb]
 tmdbBaseUrl=https://api.themoviedb.org/3/
-apiKey=votreCleAPIIci
+apiKey=votreCleApiIci
+language=fr-FR
 
 [cleanFilenames]
 wordsMinLen=2

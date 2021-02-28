@@ -131,7 +131,7 @@ function recupTmdbResults($filename) {
         curl_close($ch);
         $results = json_decode($response, true);
         
-        //llog("results:".json_encode($results,JSON_PRETTY_PRINT),2);
+        llog("results:".json_encode($results,JSON_PRETTY_PRINT));
         
         if(array_key_exists("total_results",$results) &&  $results["total_results"]==0) {
             array_pop($keyWords);       
@@ -147,6 +147,10 @@ function recupTmdbResults($filename) {
     return $results["results"];
 }
 
+function in_arrayi($needle, $haystack) {
+    return in_array(strtolower($needle), array_map('strtolower', $haystack));
+}
+
 function allValuesInArray($values,$tab) {
     llog("allValuesInArray:",2);
     if(getGlobalLogLevel()==2) {
@@ -154,7 +158,7 @@ function allValuesInArray($values,$tab) {
         llog("tab:",2); var_dump($tab);
     }
     foreach($values as $val) {
-        if(!in_array($val,$tab)) {
+        if(!in_arrayi($val,$tab)) {
             return false;
         }
     }
@@ -196,14 +200,18 @@ function choisiTmdbResult($filename,$allResults){
     $trouve=false;
     $indice=0;
     while($indice<count($allResults)) {
-        if($allResults[$indice] && $allResults[$indice]["title"]) {
-            $title=$allResults[$indice]["title"];
-            $annee=$allResults[$indice]["release_date"]?substr($allResults[$indice]["release_date"],0,4):"";
-            if(allValuesInArray(explode(" ",$title. " ".$annee),$keyWords)) {
-                $trouve=true;
-                break;
+        if($allResults[$indice]) {
+            foreach(["title","original_title"] as $nomChamp) {                
+                if($allResults[$indice][$nomChamp]) {
+                    $title=$allResults[$indice][$nomChamp];
+                    if(allValuesInArray(keywords($title,1),$keyWords)) {
+                        $trouve=true;
+                        break;
+                    }
+                }
             }
         }
+        if($trouve) {break;}
         $indice++;
     }
     

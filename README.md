@@ -1,6 +1,9 @@
 # videoRenamer
 Renomme des fichiers vidéo selon tmdb pour intégration dans Kodi.
 -----------------------------------------------------------------
+Prérequis :
+- copier le videoRenamer.php.ini.dist en videoRenamer.php.ini et renseigner a minima la cle API.
+- paquets : php-curl
 
 Exemple d'utilisation :
 

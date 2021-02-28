@@ -66,14 +66,16 @@ function getIniParams() {
     return $params;
 }
 
-function keyWords($filename) {
+function keyWords($filename,$wordsMinLen=9999) {
     // retourne les mots cles extrait du nom de fichier dans un tableau
     global $iniParams;
 
     // retourne le nom du fichier "nettoyé".
     llog("recupTmdb:" . $filename,2);
+    if($wordsMinLen==9999) {
+        $wordsMinLen=$iniParams["wordsMinLen"];
+    }
     $excludeWords=$iniParams["excludeWords"];
-    $wordsMinLen=$iniParams["wordsMinLen"];
     
     //nettoyage du nom de fichier
     $resKeyWords=[];
@@ -97,16 +99,26 @@ function keyWords($filename) {
     return $resKeyWords;
 }
 
-function recupTmdb($filename) {
+function recupTmdbResults($filename) {
     global $iniParams;
+    llog("recupTmdbResults:",2);
+    if(getGlobalLogLevel()==2) {
+        var_dump($filename);
+    }
+    
     // Récupération des mot cles
     $keyWords=keyWords($filename);
+    
+    $annee=extraitAnnee($filename);
     
     while(count($keyWords)>0) {
         //Chaine du parametre query de l'API
         $keyWordsStr=implode("+",$keyWords);
         //l'URL
         $url= $iniParams["tmdbBaseUrl"] . "search/movie?api_key=" . $iniParams["apiKey"] . "&query=".$keyWordsStr . "&language=".$iniParams["language"];
+        if($annee) {
+            $url.="&year=".$annee;
+        }
         llog("URL:".$url,2);
         
         // Requeter
@@ -119,7 +131,7 @@ function recupTmdb($filename) {
         curl_close($ch);
         $results = json_decode($response, true);
         
-        llog("results:".json_encode($results,JSON_PRETTY_PRINT),2);
+        //llog("results:".json_encode($results,JSON_PRETTY_PRINT),2);
         
         if(array_key_exists("total_results",$results) &&  $results["total_results"]==0) {
             array_pop($keyWords);       
@@ -132,25 +144,104 @@ function recupTmdb($filename) {
         return false;
     }
     
-    return $results["results"][0];
+    return $results["results"];
+}
+
+function allValuesInArray($values,$tab) {
+    llog("allValuesInArray:",2);
+    if(getGlobalLogLevel()==2) {
+        llog("values:",2); var_dump($values);
+        llog("tab:",2); var_dump($tab);
+    }
+    foreach($values as $val) {
+        if(!in_array($val,$tab)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function isYear($annee){
+    //Année de 1901 à 2155
+    $regex = "/^19[0-9]{1}[1-9]{1}|20[0-9]{2}|21[0-4][0-9]|215[0-5]$/";
+    return preg_match($regex,$annee);
+}
+
+function extraitAnnee($filename) {
+    //recherche la présence d'un année dans le titre.
+    $words=keyWords($filename);
+    
+    foreach($words as $word) {
+        if(isYear($word)) {
+            return $word;
+        }
+    }
+    
+    return false;
+}
+
+function choisiTmdbResult($filename,$allResults){
+    global $iniParams;
+    // Choisit un resultats tmdb parmi tous
+    llog("choisitTmdbResult:",2);
+    if(getGlobalLogLevel()==2) {
+        var_dump($filename);
+        //var_dump($allResults);
+    }
+
+    // Récupération des mot cles
+    $keyWords=keyWords($filename,1);
+    
+    //recherche du meilleur
+    $trouve=false;
+    $indice=0;
+    while($indice<count($allResults)) {
+        if($allResults[$indice] && $allResults[$indice]["title"]) {
+            $title=$allResults[$indice]["title"];
+            $annee=$allResults[$indice]["release_date"]?substr($allResults[$indice]["release_date"],0,4):"";
+            if(allValuesInArray(explode(" ",$title. " ".$annee),$keyWords)) {
+                $trouve=true;
+                break;
+            }
+        }
+        $indice++;
+    }
+    
+    if($trouve) {
+        llog("Trouvé, indice ". $indice,2);
+        return $allResults[$indice];
+    } elseif ($allResults[0]) {
+        llog("Fallback, indice  0",2);
+        return $allResults[0];
+    }
+    
+    return false;
 }
 
 function videoRenameFile($dirname,$filename) {
     // retourne le triplet :
-    // dir/name/keyWords soit repertoire/fichier/mots cles 
+    // dir/name/newName soit repertoire/fichier/nouveau nom 
     // le fichier doit exister
     llog("videoRenameFile:" . $dirname . "-".$filename,2);
 
-    $tmdbDatas=recupTmdb($filename);
+    $tmdbAllDatas=recupTmdbResults($filename);
+    if($tmdbAllDatas===false || count($tmdbAllDatas)==0) {
+        return false;
+    }
     
-    $newName[]=$tmdbDatas["title"];
-    $newName[]=$tmdbDatas["release_date"];
-    $newName[]=pathinfo($filename)["extension"];
+    $tmdbDatas=choisiTmdbResult($filename,$tmdbAllDatas);
+    $annee=$tmdbDatas["release_date"]?substr($tmdbDatas["release_date"],0,4):"1900";
+    
+    if($tmdbDatas!==false) {
+        $newName[]=$tmdbDatas["title"];
+        $newName[]=$annee;
+        $newName[]=pathinfo($filename)["extension"];
+    }
     
     $fileRenamed = [
         "dir" => $dirname,
         "name" => $filename,
-        "newName" => implode(".",$newName),
+        "newName" => $tmdbDatas!==false?implode(".",$newName):$filename,
     ];
     
     return $fileRenamed;
@@ -167,7 +258,10 @@ function videoRenameDir($dirname,$recurs) {
             if(is_dir($dirname .$entry) && $recurs) {
                 $filesRenamed=array_merge($filesRenamed,videoRenameDir($dirname . $entry,$recurs));
             } elseif (is_file($dirname .$entry)) {
-                $filesRenamed[]=videoRenameFile($dirname,$entry);
+                $newDatas=videoRenameFile($dirname,$entry);
+                if($newDatas!==false) {
+                    $filesRenamed[]=$newDatas;
+                }
             }
         }
     }

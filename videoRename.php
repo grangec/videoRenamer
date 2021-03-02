@@ -68,6 +68,7 @@ function getIniParams() {
 
 function keyWords($filename,$wordsMinLen=9999) {
     // retourne les mots cles extrait du nom de fichier dans un tableau
+    // Par defaut, prend dans le .ini
     global $iniParams;
 
     // retourne le nom du fichier "nettoyé".
@@ -129,9 +130,10 @@ function recupTmdbResults($filename) {
         curl_setopt($ch, CURLOPT_HTTPHEADER, array("Accept: application/json"));
         $response = curl_exec($ch);
         curl_close($ch);
+        llog("response:".$response);
         $results = json_decode($response, true);
         
-        llog("results:".json_encode($results,JSON_PRETTY_PRINT));
+        llog("results:".json_encode($results,JSON_PRETTY_PRINT),2);
         
         if(array_key_exists("total_results",$results) &&  $results["total_results"]==0) {
             array_pop($keyWords);       
@@ -160,6 +162,28 @@ function allValuesInArray($values,$tab) {
     foreach($values as $val) {
         if(!in_arrayi($val,$tab)) {
             return false;
+        }
+    }
+    return true;
+}
+
+function allValuesOrderedInArray($values,$tab) {
+    llog("allValuesInArray:",2);
+    if(getGlobalLogLevel()==2) {
+        llog("values:",2); var_dump($values);
+        llog("tab:",2); var_dump($tab);
+    }
+    $keyCur=-1;
+    foreach($values as $val) {
+        if(!in_arrayi($val,$tab)) {
+            return false;
+        } else {
+            $key = array_search(strtolower($val), array_map('strtolower', $tab));
+            if($key<$keyCur) {
+               return false;
+            } else {
+               $keyCur=$key;
+            }           
         }
     }
     return true;
@@ -204,7 +228,7 @@ function choisiTmdbResult($filename,$allResults){
             foreach(["title","original_title"] as $nomChamp) {                
                 if($allResults[$indice][$nomChamp]) {
                     $title=$allResults[$indice][$nomChamp];
-                    if(allValuesInArray(keywords($title,1),$keyWords)) {
+                    if(allValuesOrderedInArray(keywords($title,1),$keyWords)) {
                         $trouve=true;
                         break;
                     }
@@ -218,10 +242,7 @@ function choisiTmdbResult($filename,$allResults){
     if($trouve) {
         llog("Trouvé, indice ". $indice,2);
         return $allResults[$indice];
-    } elseif ($allResults[0]) {
-        llog("Fallback, indice  0",2);
-        return $allResults[0];
-    }
+    } 
     
     return false;
 }
@@ -238,9 +259,9 @@ function videoRenameFile($dirname,$filename) {
     }
     
     $tmdbDatas=choisiTmdbResult($filename,$tmdbAllDatas);
-    $annee=$tmdbDatas["release_date"]?substr($tmdbDatas["release_date"],0,4):"1900";
     
     if($tmdbDatas!==false) {
+        $annee=$tmdbDatas["release_date"]?substr($tmdbDatas["release_date"],0,4):"1900";
         $newName[]=$tmdbDatas["title"];
         $newName[]=$annee;
         $newName[]=pathinfo($filename)["extension"];
@@ -261,7 +282,8 @@ function videoRenameDir($dirname,$recurs) {
     llog("videoRenameDir:" . $dirname,2);
     $d = dir($dirname);
     $filesRenamed=[];
-    while (false !== ($entry = $d->read())) {
+    $fini=false;
+    while ( (false !== ($entry = $d->read())) && !$fini) {
         if($entry!="." && $entry != "..") {
             if(is_dir($dirname .$entry) && $recurs) {
                 $filesRenamed=array_merge($filesRenamed,videoRenameDir($dirname . $entry,$recurs));
@@ -269,6 +291,7 @@ function videoRenameDir($dirname,$recurs) {
                 $newDatas=videoRenameFile($dirname,$entry);
                 if($newDatas!==false) {
                     $filesRenamed[]=$newDatas;
+                    if(count($filesRenamed)>10) {$fini=true;}
                 }
             }
         }

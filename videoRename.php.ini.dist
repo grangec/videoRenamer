@@ -1,6 +1,6 @@
 [tmdb]
 tmdbBaseUrl=https://api.themoviedb.org/3/
-apiKey=votreCleApiIci
+apiKey=**************************
 language=fr-FR
 
 [cleanFilenames]
@@ -13,6 +13,8 @@ excludeWords[]=com
 excludeWords[]=xvid
 excludeWords[]=bdrip
 excludeWords[]=bluray
+excludeWords[]=dvd
+excludeWords[]=dvdrip
 excludeWords[]=avi
 excludeWords[]=mkv
 excludeWords[]=subforced
@@ -21,3 +23,6 @@ excludeWords[]=webrip
 excludeWords[]=720p
 excludeWords[]=1080p
 excludeWords[]=x264
+excludeWords[]=TrueFrench
+exludeRegex[]="(\[.*\] *)"
+exludeRegex[]="(\(.*\) *)"

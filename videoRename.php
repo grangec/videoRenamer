@@ -293,14 +293,16 @@ function videoRenameDir($dirname,$recurs) {
     $filesRenamed=[];
     $fini=false;
     while ( (false !== ($entry = $d->read())) && !$fini) {
-        if($entry!="." && $entry != "..") {
+        if($entry!="." && $entry!="..") {
             if(is_dir($dirname .$entry) && $recurs) {
-                $filesRenamed=array_merge($filesRenamed,videoRenameDir($dirname . $entry,$recurs));
+                //llog("TAITEMENT REP : ".$dirname . $entry);
+                $filesRenamed=array_merge($filesRenamed,videoRenameDir($dirname . $entry . "/",$recurs));
             } elseif (is_file($dirname .$entry)) {
+                //llog("TAITEMENT FILE : ".$dirname . $entry);
                 $newDatas=videoRenameFile($dirname,$entry);
                 if($newDatas!==false) {
                     $filesRenamed[]=$newDatas;
-                    if(count($filesRenamed)>10) {$fini=true;}
+                    //llog(json_encode($newDatas,JSON_PRETTY_PRINT),1);
                 }
             }
         }

@@ -8,6 +8,7 @@ $iniParams=[];
 
 // gestion du niveau de log
 $logLevel=0; // niveau général de log
+
 function setGlobalLogLevel($level) {
     global $logLevel;
     $logLevel=$level;
@@ -29,7 +30,7 @@ function init() {
     // divers initialisations
     // gestion de options de la ligne de commande
     // retourne le tableau des options (getOpt)
-    $cdeLineParams=getopt("b::h::R::v::d:");
+    $cdeLineParams=getopt("d:b::h::R::v::");
     
     if(key_exists("h", $cdeLineParams)) {
         llog("==============");
@@ -130,7 +131,7 @@ function recupTmdbResults($filename) {
         curl_setopt($ch, CURLOPT_HTTPHEADER, array("Accept: application/json"));
         $response = curl_exec($ch);
         curl_close($ch);
-        llog("response:".$response);
+        llog("response:".$response,2);
         $results = json_decode($response, true);
         
         llog("results:".json_encode($results,JSON_PRETTY_PRINT),2);
@@ -251,8 +252,16 @@ function videoRenameFile($dirname,$filename) {
     // retourne le triplet :
     // dir/name/newName soit repertoire/fichier/nouveau nom 
     // le fichier doit exister
-    llog("videoRenameFile:" . $dirname . "-".$filename,2);
-
+    global $iniParams;
+    llog("videoRenameFile : " . $dirname . "-".$filename,2);
+    
+    // commence par nettoyer par expression reguliere
+    $excludeRegex=$iniParams["exludeRegex"];
+    foreach($excludeRegex as $regex) {
+        $filename=preg_replace("$regex","",$filename);        
+    }
+    llog("filename nettoye regex :".$filename,2);
+    
     $tmdbAllDatas=recupTmdbResults($filename);
     if($tmdbAllDatas===false || count($tmdbAllDatas)==0) {
         return false;

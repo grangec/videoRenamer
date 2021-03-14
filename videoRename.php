@@ -30,7 +30,7 @@ function init() {
     // divers initialisations
     // gestion de options de la ligne de commande
     // retourne le tableau des options (getOpt)
-    $cdeLineParams=getopt("d:b::h::R::v::");
+    $cdeLineParams=getopt("d:b::h::R::v::g::");
     
     if(key_exists("h", $cdeLineParams)) {
         llog("==============");
@@ -39,6 +39,7 @@ function init() {
         llog();
         llog("-d <directory> : The Directory containing video files to rename.");
         llog("-R             : Recursivly.");
+        llog("-g             : Go (renomage effectif)");
         llog("-v             : Verbose");
         llog("-b             : Debug");
         llog("-h             : Help");
@@ -286,7 +287,7 @@ function videoRenameFile($dirname,$filename) {
     return $fileRenamed;
 }
 
-function videoRenameDir($dirname,$recurs) {
+function videoRenameDir($dirname,$recurs,$go) {
     // retourne l'array contenant les triplets :
     // repertoire / fichier / fichier renommé 
     llog("videoRenameDir:" . $dirname,2);
@@ -297,7 +298,7 @@ function videoRenameDir($dirname,$recurs) {
         if($entry!="." && $entry!="..") {
             if(is_dir($dirname .$entry) && $recurs) {
                 //llog("TAITEMENT REP : ".$dirname . $entry);
-                $filesRenamed=array_merge($filesRenamed,videoRenameDir($dirname . $entry . "/",$recurs));
+                $filesRenamed=array_merge($filesRenamed,videoRenameDir($dirname . $entry . "/",$recurs,$go));
             } elseif (is_file($dirname .$entry)) {
                 //llog("TAITEMENT FILE : ".$dirname . $entry);
                 $newDatas=videoRenameFile($dirname,$entry);
@@ -310,16 +311,19 @@ function videoRenameDir($dirname,$recurs) {
     }
     $d->close();
     
-    llog("Renomage effectif en cours ...",1);
-    foreach($filesRenamed as $file) {
-        $oldName=$file['dir'].$file['name'];
-        $newName=$file['dir'].$file['newName'];
-        if($oldName!=$newName && is_file($oldName)) {
-            llog("Renomage : " . $newName,1);
-            rename($oldName,$newName);
+    if($go) {
+        llog("Renomage effectif en cours ...",1);
+        foreach($filesRenamed as $file) {
+            $oldName=$file['dir'].$file['name'];
+            $newName=$file['dir'].$file['newName'];
+            if($oldName!=$newName && is_file($oldName)) {
+                llog("Renomage : " . $newName,1);
+                rename($oldName,$newName);
+            }
         }
+    } else {
+        llog("Renomage desactivé, utilisez l'option -g");
     }
-    
     return $filesRenamed;
 }
 
@@ -348,7 +352,7 @@ if(key_exists("d", $cdeLineParams) && $cdeLineParams["d"]) {
         llog("Traitement repertoire : " . $dirname,2);
         $dirname=$dirname.(substr($dirname,-1)=="/"?"":"/");
         $recurs=key_exists("R",$cdeLineParams);
-        $filesRenamedTab=videoRenameDir($dirname,$recurs);
+        $filesRenamedTab=videoRenameDir($dirname,$recurs,key_exists("g", $cdeLineParams));
     } elseif (is_file($dirname)) {
         llog("Traitement fichier : " . $dirname,2);
         $filesRenamedTab[$dirname]=videoRenameFile($dirname);

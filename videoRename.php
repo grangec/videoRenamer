@@ -257,29 +257,30 @@ function videoRenameFile($dirname,$filename) {
     
     // commence par nettoyer par expression reguliere
     $excludeRegex=$iniParams["exludeRegex"];
+    $regexName=$filename;
     foreach($excludeRegex as $regex) {
-        $filename=preg_replace("$regex","",$filename);        
+        $regexName=preg_replace("$regex","",$regexName);        
     }
-    llog("filename nettoye regex :".$filename,2);
+    llog("filename nettoye regex :".$regexName,2);
     
-    $tmdbAllDatas=recupTmdbResults($filename);
+    $tmdbAllDatas=recupTmdbResults($regexName);
     if($tmdbAllDatas===false || count($tmdbAllDatas)==0) {
         return false;
     }
     
-    $tmdbDatas=choisiTmdbResult($filename,$tmdbAllDatas);
+    $tmdbDatas=choisiTmdbResult($regexName,$tmdbAllDatas);
     
     if($tmdbDatas!==false) {
         $annee=$tmdbDatas["release_date"]?substr($tmdbDatas["release_date"],0,4):"1900";
         $newName[]=$tmdbDatas["title"];
         $newName[]=$annee;
-        $newName[]=pathinfo($filename)["extension"];
+        $newName[]=pathinfo($regexName)["extension"];
     }
     
     $fileRenamed = [
         "dir" => $dirname,
         "name" => $filename,
-        "newName" => $tmdbDatas!==false?implode(".",$newName):$filename,
+        "newName" => $tmdbDatas!==false?implode(".",$newName):$regexName,
     ];
     
     return $fileRenamed;
@@ -302,12 +303,22 @@ function videoRenameDir($dirname,$recurs) {
                 $newDatas=videoRenameFile($dirname,$entry);
                 if($newDatas!==false) {
                     $filesRenamed[]=$newDatas;
-                    //llog(json_encode($newDatas,JSON_PRETTY_PRINT),1);
+                    llog(json_encode($newDatas,JSON_PRETTY_PRINT),1);
                 }
             }
         }
     }
     $d->close();
+    
+    llog("Renomage effectif en cours ...",1);
+    foreach($filesRenamed as $file) {
+        $oldName=$file['dir'].$file['name'];
+        $newName=$file['dir'].$file['newName'];
+        if($oldName!=$newName && is_file($oldName)) {
+            llog("Renomage : " . $newName,1);
+            rename($oldName,$newName);
+        }
+    }
     
     return $filesRenamed;
 }
@@ -321,7 +332,7 @@ function fRealPath($dirname) {
     } else {
         $rpath=$dirname;
     }
-    return $rpath;
+    return realpath($rpath);
 }
 
 // Main

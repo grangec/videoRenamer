@@ -6,8 +6,12 @@ $maxLen = 2;
 $excludeWords = [];
 $iniParams=[];
 
+CONST LLOG_BASE  = 0;
+CONST LLOG_INFO  = 1;
+CONST LLOG_DEBUG = 2;
+
 // gestion du niveau de log
-$logLevel=0; // niveau général de log
+$logLevel=LLOG_BASE; // niveau général de log
 
 function setGlobalLogLevel($level) {
     global $logLevel;
@@ -52,7 +56,7 @@ function init() {
     
     if(key_exists("b", $cdeLineParams)) {
         llog("Debug activé.");
-        setGlobalLogLevel(2);
+        setGlobalLogLevel(LLOG_DEBUG);
     }
     
     return $cdeLineParams;
@@ -62,9 +66,9 @@ function getIniParams() {
     global $argv;
 
     // Lit le fichier .ini du script et renvoi le tableau associatif resultant.
-    llog("Ini File : ". $argv[0]. ".ini",2);
+    llog("Ini File : ". $argv[0]. ".ini",LLOG_DEBUG);
     $params=parse_ini_file($argv[0] . ".ini");
-    if (getGlobalLogLevel()==2) {var_dump($params);}
+    if (getGlobalLogLevel()==LLOG_DEBUG) {var_dump($params);}
     return $params;
 }
 
@@ -74,7 +78,7 @@ function keyWords($filename,$wordsMinLen=9999) {
     global $iniParams;
 
     // retourne le nom du fichier "nettoyé".
-    llog("recupTmdb:" . $filename,2);
+    llog("recupTmdb:" . $filename,LLOG_DEBUG);
     if($wordsMinLen==9999) {
         $wordsMinLen=$iniParams["wordsMinLen"];
     }
@@ -104,8 +108,8 @@ function keyWords($filename,$wordsMinLen=9999) {
 
 function recupTmdbResults($filename) {
     global $iniParams;
-    llog("recupTmdbResults:",2);
-    if(getGlobalLogLevel()==2) {
+    llog("recupTmdbResults:",LLOG_DEBUG);
+    if(getGlobalLogLevel()==LLOG_DEBUG) {
         var_dump($filename);
     }
     
@@ -118,11 +122,19 @@ function recupTmdbResults($filename) {
         //Chaine du parametre query de l'API
         $keyWordsStr=implode("+",$keyWords);
         //l'URL
-        $url= $iniParams["tmdbBaseUrl"] . "search/movie?api_key=" . $iniParams["apiKey"] . "&query=".$keyWordsStr . "&language=".$iniParams["language"];
+        $elemUrl= [
+            $iniParams["tmdbBaseUrl"], 
+            "search/movie?api_key=" , 
+            $iniParams["apiKey"], 
+            "&query=".$keyWordsStr, 
+            "&language=",
+            $iniParams["language"]
+            ];
         if($annee) {
-            $url.="&year=".$annee;
+            $elemUrl[] = "&year=".$annee;
         }
-        llog("URL:".$url,2);
+        $url = implode($elemUrl);
+        llog("URL:".$url,LLOG_DEBUG);
         
         // Requeter
         $ch = curl_init();
@@ -130,12 +142,14 @@ function recupTmdbResults($filename) {
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
         curl_setopt($ch, CURLOPT_HEADER, FALSE);
         curl_setopt($ch, CURLOPT_HTTPHEADER, array("Accept: application/json"));
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 0);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 60); //timeout in seconds
         $response = curl_exec($ch);
         curl_close($ch);
-        llog("response:".$response,2);
+        llog("response:".$response,LOG_DEBUG);
         $results = json_decode($response, true);
         
-        llog("results:".json_encode($results,JSON_PRETTY_PRINT),2);
+        llog("results:".json_encode($results,JSON_PRETTY_PRINT),LLOG_DEBUG);
         
         if(array_key_exists("total_results",$results) &&  $results["total_results"]==0) {
             array_pop($keyWords);       
@@ -156,10 +170,10 @@ function in_arrayi($needle, $haystack) {
 }
 
 function allValuesInArray($values,$tab) {
-    llog("allValuesInArray:",2);
+    llog("allValuesInArray:",LLOG_DEBUG);
     if(getGlobalLogLevel()==2) {
-        llog("values:",2); var_dump($values);
-        llog("tab:",2); var_dump($tab);
+        llog("values:",LLOG_DEBUG); var_dump($values);
+        llog("tab:",LLOG_DEBUG); var_dump($tab);
     }
     foreach($values as $val) {
         if(!in_arrayi($val,$tab)) {
@@ -170,10 +184,10 @@ function allValuesInArray($values,$tab) {
 }
 
 function allValuesOrderedInArray($values,$tab) {
-    llog("allValuesInArray:",2);
+    llog("allValuesInArray:",LLOG_DEBUG);
     if(getGlobalLogLevel()==2) {
-        llog("values:",2); var_dump($values);
-        llog("tab:",2); var_dump($tab);
+        llog("values:",LLOG_DEBUG); var_dump($values);
+        llog("tab:",LLOG_DEBUG); var_dump($tab);
     }
     $keyCur=-1;
     foreach($values as $val) {
@@ -213,14 +227,14 @@ function extraitAnnee($filename) {
 function choisiTmdbResult($filename,$allResults){
     global $iniParams;
     // Choisit un resultats tmdb parmi tous
-    llog("choisitTmdbResult:",2);
+    llog("choisitTmdbResult:",LLOG_DEBUG);
     if(getGlobalLogLevel()==2) {
         var_dump($filename);
         //var_dump($allResults);
     }
 
     // Récupération des mot cles
-    $keyWords=keyWords($filename,1);
+    $keyWords=keyWords($filename,LLOG_INFO);
     
     //recherche du meilleur
     $trouve=false;
@@ -230,7 +244,7 @@ function choisiTmdbResult($filename,$allResults){
             foreach(["title","original_title"] as $nomChamp) {                
                 if($allResults[$indice][$nomChamp]) {
                     $title=$allResults[$indice][$nomChamp];
-                    if(allValuesOrderedInArray(keywords($title,1),$keyWords)) {
+                    if(allValuesOrderedInArray(keywords($title,LLOG_INFO),$keyWords)) {
                         $trouve=true;
                         break;
                     }
@@ -242,7 +256,7 @@ function choisiTmdbResult($filename,$allResults){
     }
     
     if($trouve) {
-        llog("Trouvé, indice ". $indice,2);
+        llog("Trouvé, indice ". $indice,LLOG_DEBUG);
         return $allResults[$indice];
     } 
     
@@ -254,7 +268,7 @@ function videoRenameFile($dirname,$filename) {
     // dir/name/newName soit repertoire/fichier/nouveau nom 
     // le fichier doit exister
     global $iniParams;
-    llog("videoRenameFile : " . $dirname . "-".$filename,2);
+    llog("videoRenameFile : " . $dirname . "-".$filename,LLOG_DEBUG);
     
     // commence par nettoyer par expression reguliere
     $excludeRegex=$iniParams["exludeRegex"];
@@ -262,7 +276,7 @@ function videoRenameFile($dirname,$filename) {
     foreach($excludeRegex as $regex) {
         $regexName=preg_replace("$regex","",$regexName);        
     }
-    llog("filename nettoye regex :".$regexName,2);
+    llog("filename nettoye regex :".$regexName,LLOG_DEBUG);
     
     $tmdbAllDatas=recupTmdbResults($regexName);
     if($tmdbAllDatas===false || count($tmdbAllDatas)==0) {
@@ -290,7 +304,7 @@ function videoRenameFile($dirname,$filename) {
 function videoRenameDir($dirname,$recurs,$go) {
     // retourne l'array contenant les triplets :
     // repertoire / fichier / fichier renommé 
-    llog("videoRenameDir:" . $dirname,2);
+    llog("videoRenameDir:" . $dirname,LLOG_DEBUG);
     $d = dir($dirname);
     $filesRenamed=[];
     $fini=false;
@@ -304,7 +318,7 @@ function videoRenameDir($dirname,$recurs,$go) {
                 $newDatas=videoRenameFile($dirname,$entry);
                 if($newDatas!==false) {
                     $filesRenamed[]=$newDatas;
-                    llog(json_encode($newDatas,JSON_PRETTY_PRINT),1);
+                    llog(json_encode($newDatas,JSON_PRETTY_PRINT),LLOG_INFO);
                 }
             }
         }
@@ -312,12 +326,12 @@ function videoRenameDir($dirname,$recurs,$go) {
     $d->close();
     
     if($go) {
-        llog("Renomage effectif en cours ...",1);
+        llog("Renomage effectif en cours ...",LLOG_INFO);
         foreach($filesRenamed as $file) {
             $oldName=$file['dir'].$file['name'];
             $newName=$file['dir'].$file['newName'];
             if($oldName!=$newName && is_file($oldName)) {
-                llog("Renomage : " . $newName,1);
+                llog("Renomage : " . $newName,LLOG_INFO);
                 rename($oldName,$newName);
             }
         }
@@ -329,7 +343,7 @@ function videoRenameDir($dirname,$recurs,$go) {
 
 function fRealPath($dirname) {
     // retourne le chemin absolu correspondant.
-    llog("fRealPath : " . $dirname,2);
+    llog("fRealPath : " . $dirname,LLOG_DEBUG);
     $rpath="";
     if(substr($dirname, 0, 1)=="~") {
         $rpath=getenv("HOME").substr($dirname, 1);        
@@ -349,19 +363,19 @@ if(key_exists("d", $cdeLineParams) && $cdeLineParams["d"]) {
     
     $dirname=fRealPath($cdeLineParams["d"]);
     if(is_dir($dirname)) {
-        llog("Traitement repertoire : " . $dirname,2);
+        llog("Traitement repertoire : " . $dirname,LLOG_DEBUG);
         $dirname=$dirname.(substr($dirname,-1)=="/"?"":"/");
         $recurs=key_exists("R",$cdeLineParams);
         $filesRenamedTab=videoRenameDir($dirname,$recurs,key_exists("g", $cdeLineParams));
     } elseif (is_file($dirname)) {
-        llog("Traitement fichier : " . $dirname,2);
+        llog("Traitement fichier : " . $dirname,LLOG_DEBUG);
         $filesRenamedTab[$dirname]=videoRenameFile($dirname);
     } else {
         llog("'".$dirname . "' n'est pas un dossier");
         exit(2);
     }
-    llog("Tableau des fichier renommés :",2);
-    llog(json_encode($filesRenamedTab,JSON_PRETTY_PRINT),1);
+    llog("Tableau des fichier renommés :",LLOG_DEBUG);
+    llog(json_encode($filesRenamedTab,JSON_PRETTY_PRINT),LLOG_INFO);
 } else {
     llog("Vous devez préciser un dossier (option -d)");
     exit(1);
